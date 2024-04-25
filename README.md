@@ -17,7 +17,7 @@ python3 server.py
 
 调用websocket服务，可参考client.py
 ```bash
-python client.py
+python3 client.py
 ```
 
 ## 接口形式
