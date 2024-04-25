@@ -7,7 +7,7 @@ def init_logger(name):
     logger.setLevel(logging.DEBUG)  # 设置日志级别为DEBUG
 
     # 创建一个handler，用于每天换一个日志文件
-    file_handler = TimedRotatingFileHandler(f'./log/{name}.log', when="midnight", interval=1, backupCount=7)
+    file_handler = TimedRotatingFileHandler(f'{name}.log', when="midnight", interval=1, backupCount=7)
     file_handler.setLevel(logging.DEBUG)  # 设置handler的日志级别
     file_handler.suffix = "%Y-%m-%d.log"  # 设置文件名后缀，按天进行区分
 
