@@ -14,6 +14,8 @@ port = 8765
 logger = init_logger('chatglm3')
 client_pool = []
 
+token_len_total = 0
+next_duration_total = 1e-8 
 
 def init_client_pool():
     for dev_id in dev_ids:
@@ -32,26 +34,33 @@ async def consumer_handler(queue):
                 client_pool[i]["status"] = 1
                 asyncio.create_task(process_message(client_pool[i], message, websocket))  # 处理消息
 
-        await asyncio.sleep(2)
+        await asyncio.sleep(1)
 
 async def process_message(client_item, message, websocket):
     try:
         params = json.loads(message)
+        is_decode = params.get('is_decode', True)
+        forward_times = params.get('forward_times', 0)
         loop = asyncio.get_running_loop()
-        answer, ftl, token_len, next_duration = await loop.run_in_executor(
+        answer, ftl, next_token_len, next_duration = await loop.run_in_executor(
             None,  # None 表示使用默认的线程池执行器
             client_item["client"].chat, 
             params["question"],  
-            []  
+            [],
+            is_decode,
+            forward_times
         )
         response = {
             "id": params["id"],
             "answer": answer,
-            "ftl": ftl,
-            "token_len": token_len,
-            "next_duration": next_duration
+            "ftl": ftl
         }
+        global token_len_total, next_duration_total
+        token_len_total += next_token_len
+        next_duration_total += next_duration
+
         logger.info(f"chat done: {json.dumps(response, ensure_ascii=False)}")
+        logger.info(f"token_len_total: {token_len_total}, next_duration_total: {next_duration_total}")
         # 处理完成，发送响应给客户端
         await websocket.send(json.dumps(response, ensure_ascii=False))
     except Exception as e:
@@ -63,9 +72,12 @@ async def process_message(client_item, message, websocket):
 
 async def handler(websocket, path, queue):
     async for message in websocket:
-        # logger.info(f"get message: {message}")
-        # 将消息和websocket连接放入队列
-        asyncio.create_task(queue.put((message, websocket)))
+        logger.info(f"get message: {message}")
+        if (message == "tps"):
+            await websocket.send(str((token_len_total / next_duration_total) * len(dev_ids)))
+        else:
+            # 将消息和websocket连接放入队列
+            asyncio.create_task(queue.put((message, websocket)))
 
 async def main():
     init_client_pool()

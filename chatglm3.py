@@ -11,7 +11,6 @@ import time
 import argparse
 from transformers import AutoTokenizer
 import numpy as np
-import asyncio
 
 #convert sail_dtype to numpy dtype
 def type_convert(sail_dtype):
@@ -242,22 +241,26 @@ class ChatGLM3:
         self.net.process(self.name_lm, input_lm_tensors, output_lm_tensors)
         return int(self.lm_output["data"].asnumpy()) #int32
             
-    def chat(self, input, history):
-        tok_num = 0
+    def chat(self, input, history, is_decode, forward_times):
         input_tokens = self.sp.build_chat_input(input, history=history, role="user")
         first_start = time.time()
         pre_token = self.forward_first(input_tokens)
         first_end = time.time()
         token = pre_token
-        tokens = []
-        while token != self.EOS and self.token_length < self.SEQLEN:
-            tokens.append(token)
-            self.token_length += 1
-            tok_num += 1
+        tokens = [token]
+        tok_num = 1
+        self.token_length += 1
+        while token != self.EOS and self.token_length < self.SEQLEN and tok_num != forward_times:
             token = self.forward_next()
+            tokens.append(token)
+            tok_num += 1
+            self.token_length += 1
 
         next_end = time.time()
         first_duration = first_end-first_start
         next_duration = next_end-first_end
         tps = tok_num / next_duration
-        return (self.sp.decode(tokens), first_duration, tok_num, next_duration)
+        if (is_decode):
+            return (self.sp.decode(tokens), first_duration, tok_num - 1, next_duration)
+        else:
+            return tokens, first_duration, tok_num - 1, next_duration

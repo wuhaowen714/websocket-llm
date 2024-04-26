@@ -13,7 +13,9 @@ def build_request(raw):
     question = f"{raw['question']} A.{raw['A']}。B.{raw['B']}。 C.{raw['C']}。D.{raw['D']}"
     request = {
         "id": int(raw['id']),
-        "question": question
+        "question": question,
+        "is_decode": False,
+        "forward_times": 3
     }
     return request
 
@@ -22,11 +24,12 @@ def build_request(raw):
 async def send_messages(websocket):
     # 读取CSV文件到DataFrame
     df = pd.read_csv('accountant_test.csv', encoding='utf-8')
-    question_num = df.shape[0]
+    global question_num
+    question_num = 100
     for i in range(question_num):
         request = build_request(df.loc[i])
         await websocket.send(json.dumps(request, ensure_ascii=False))
-        await asyncio.sleep(1)  # 等待一段时间再发送下一条消息
+        await asyncio.sleep(0.3)  # 等待一段时间再发送下一条消息
 
 ## 处理消息
 async def receive_messages(websocket):
@@ -40,7 +43,9 @@ async def receive_messages(websocket):
         cnt += 1
         if (cnt == question_num):
             break
-
+    await websocket.send("tps")
+    tps = await websocket.recv()
+    print(f"tps: {tps}")
 async def main(uri):
     async with websockets.connect(uri) as websocket:
         # 创建发送和接收消息的协程
