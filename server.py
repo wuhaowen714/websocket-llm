@@ -6,9 +6,9 @@ from chatglm3 import ChatGLM3
 from transformers import AutoTokenizer
 from logger import init_logger
 
-dev_ids = [0, 1, 2]
-bmodel_path = '../../models/BM1684X/chatglm3-6b_int4.bmodel'
-tokenizer_path = '../token_config'
+dev_ids = [0]
+bmodel_path = './models/chatglm3-6b_int4_1dev_512.bmodel'
+tokenizer_path = './token_config'
 
 port = 8765
 logger = init_logger('chatglm3')
@@ -41,28 +41,46 @@ async def process_message(client_item, message, websocket):
         params = json.loads(message)
         is_decode = params.get('is_decode', True)
         forward_times = params.get('forward_times', 0)
+        is_predict_option = params.get('is_predict_option', False)
         loop = asyncio.get_running_loop()
-        answer, ftl, next_token_len, next_duration = await loop.run_in_executor(
-            None,  # None 表示使用默认的线程池执行器
-            client_item["client"].chat, 
-            params["question"],  
-            [],
-            is_decode,
-            forward_times
-        )
-        response = {
-            "id": params["id"],
-            "answer": answer,
-            "ftl": ftl
-        }
-        global token_len_total, next_duration_total
-        token_len_total += next_token_len
-        next_duration_total += next_duration
+        if (is_predict_option):
+            answer_option, ftl = await loop.run_in_executor(
+                None,
+                client_item["client"].predict_option,
+                params["question"],
+                []
+            )
+            response = {
+                "id": params["id"],
+                "answer": answer_option,
+                "ftl": ftl
+            }
 
-        logger.info(f"chat done: {json.dumps(response, ensure_ascii=False)}")
-        logger.info(f"token_len_total: {token_len_total}, next_duration_total: {next_duration_total}")
-        # 处理完成，发送响应给客户端
-        await websocket.send(json.dumps(response, ensure_ascii=False))
+            logger.info(f"chat done: {json.dumps(response, ensure_ascii=False)}")
+            await websocket.send(json.dumps(response, ensure_ascii=False))
+        else:
+            
+            answer, ftl, next_token_len, next_duration = await loop.run_in_executor(
+                None,  # None 表示使用默认的线程池执行器
+                client_item["client"].chat, 
+                params["question"],  
+                [],
+                is_decode,
+                forward_times
+            )
+            response = {
+                "id": params["id"],
+                "answer": answer,
+                "ftl": ftl
+            }
+            global token_len_total, next_duration_total
+            token_len_total += next_token_len
+            next_duration_total += next_duration
+
+            logger.info(f"chat done: {json.dumps(response, ensure_ascii=False)}")
+            logger.info(f"token_len_total: {token_len_total}, next_duration_total: {next_duration_total}")
+            # 处理完成，发送响应给客户端
+            await websocket.send(json.dumps(response, ensure_ascii=False))
     except Exception as e:
         logger.error(e)
     finally:

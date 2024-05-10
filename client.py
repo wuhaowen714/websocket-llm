@@ -10,12 +10,13 @@ uri = "ws://localhost:8765"
 question_num = 0
 
 def build_request(raw):
-    question = f"{raw['question']} A.{raw['A']}。B.{raw['B']}。 C.{raw['C']}。D.{raw['D']}"
+    question = f"以下是中国关于Accountant考试的单项选择题，请选出其中的正确答案。\n\n{raw['question']} \nA. {raw['A']}。\nB. {raw['B']}。 \nC. {raw['C']}。\nD. {raw['D']}\n答案："
     request = {
         "id": int(raw['id']),
         "question": question,
-        "is_decode": False,
-        "forward_times": 3
+        "is_decode": True,
+        "forward_times": 5,
+        "is_predict_option": True
     }
     return request
 
