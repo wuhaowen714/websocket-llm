@@ -43,8 +43,9 @@ async def process_message(client_item, message, websocket):
         forward_times = params.get('forward_times', 0)
         is_predict_option = params.get('is_predict_option', False)
         loop = asyncio.get_running_loop()
+        global token_len_total, next_duration_total
         if (is_predict_option):
-            answer_option, ftl = await loop.run_in_executor(
+            answer_option, ftl, next_token_len, next_duration = await loop.run_in_executor(
                 None,
                 client_item["client"].predict_option,
                 params["question"],
@@ -55,6 +56,9 @@ async def process_message(client_item, message, websocket):
                 "answer": answer_option,
                 "ftl": ftl
             }
+            
+            token_len_total += next_token_len
+            next_duration_total += next_duration
 
             logger.info(f"chat done: {json.dumps(response, ensure_ascii=False)}")
             await websocket.send(json.dumps(response, ensure_ascii=False))
@@ -73,7 +77,6 @@ async def process_message(client_item, message, websocket):
                 "answer": answer,
                 "ftl": ftl
             }
-            global token_len_total, next_duration_total
             token_len_total += next_token_len
             next_duration_total += next_duration
 
@@ -92,6 +95,7 @@ async def handler(websocket, path, queue):
     async for message in websocket:
         logger.info(f"get message: {message}")
         if (message == "tps"):
+            logger.info(f"tps: {(token_len_total / next_duration_total) * len(dev_ids)}")
             await websocket.send(str((token_len_total / next_duration_total) * len(dev_ids)))
         else:
             # 将消息和websocket连接放入队列

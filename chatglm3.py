@@ -303,13 +303,14 @@ class ChatGLM3:
         first_end = time.time()
         token = self.forward_next()
         logits = self.forward_next_without_topk()
+        next_end = time.time()
         option_prompt = {316: "A", 347: "B", 319: "C", 367: "D"}
         option_map = {0: "A", 1: "B", 2: "C", 3: "D"}
         score = []
         for key in option_prompt.keys():
             score.append(logits[0][key])
         max_score = max(score)
-        return option_map[score.index(max_score)], first_end-first_start
+        return option_map[score.index(max_score)], first_end-first_start, 2, next_end-first_end
 
 
     def chat(self, input, history, is_decode, forward_times):
