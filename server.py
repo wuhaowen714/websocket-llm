@@ -2,7 +2,7 @@ import asyncio
 import websockets
 import json
 import sophon.sail as sail
-from chatglm3_bs import ChatGLM3_BS
+from chatglm3 import ChatGLM3_BS
 from transformers import AutoTokenizer
 from logger import init_logger
 

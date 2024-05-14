@@ -6,7 +6,7 @@ import os
 from tqdm import tqdm
 
 # 替换为你的WebSocket服务器URI
-uri = "ws://localhost:8765"
+uri = "ws://172.26.166.90:8765"
 
 
 question_num = 0
@@ -31,7 +31,8 @@ def construct_request(subject, test_row, id):
         "id": int(id),
         "question": res,
         "is_decode": True,
-        "forward_times": 3
+        "forward_times": 3,
+        "is_predict_option": True
     }
     return request
 
@@ -41,7 +42,7 @@ async def send_messages(websocket, question_num, test_df, subject):
     for i in range(question_num):
         request = construct_request(subject, test_df.loc[i], i)
         await websocket.send(json.dumps(request, ensure_ascii=False))
-        await asyncio.sleep(0.3) # 等待一段时间再发送下一条消息
+        #await asyncio.sleep(0.3) # 等待一段时间再发送下一条消息
 
 ## 处理消息
 async def receive_messages(websocket, question_num, subject, subject_dict, res):
