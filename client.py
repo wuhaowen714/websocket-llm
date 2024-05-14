@@ -26,7 +26,7 @@ async def send_messages(websocket):
     # 读取CSV文件到DataFrame
     df = pd.read_csv('accountant_test.csv', encoding='utf-8')
     global question_num
-    question_num = 100
+    question_num = 10
     for i in range(question_num):
         request = build_request(df.loc[i])
         await websocket.send(json.dumps(request, ensure_ascii=False))
