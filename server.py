@@ -7,7 +7,7 @@ from transformers import AutoTokenizer
 from logger import init_logger
 
 dev_ids = [0]
-bmodel_path = '/disk/haowen/bmodels/chatglm3-6b_int4_4bs_1k.bmodel'
+bmodel_path = '/disk/haowen/bmodels/chatglm3-6b_int8_4bs_1k.bmodel'
 tokenizer_path = './token_config'
 batch_size = 4
 
@@ -17,7 +17,9 @@ client_pool = []
 
 
 token_len_total = 0
-next_duration_total = 1e-8 
+next_duration_total = 1e-8
+ftl_total = 0
+batch_num = 1e-8
 
 def init_client_pool():
     for dev_id in dev_ids:
@@ -67,7 +69,7 @@ async def process_message(client_item, questions, ids, message_option, websocket
         forward_times = message_option["forward_times"]
         is_predict_option = message_option["is_predict_option"]
         loop = asyncio.get_running_loop()
-        global token_len_total, next_duration_total
+        global token_len_total, next_duration_total, ftl_total, batch_num
         if (is_predict_option):
             answer_options, ftl, next_token_len, next_duration = await loop.run_in_executor(
                 None,
@@ -84,12 +86,12 @@ async def process_message(client_item, questions, ids, message_option, websocket
                     "answer": answer_options[i],
                     "ftl": ftl
                 }
+                batch_num += 1
+                ftl_total += ftl
                 logger.info(f"chat done: {json.dumps(response, ensure_ascii=False)}")
                 await websocket.send(json.dumps(response, ensure_ascii=False))
-                logger.info(f"token_len_total: {token_len_total}, next_duration_total: {next_duration_total}")
+                # logger.info(f"token_len_total: {token_len_total}, next_duration_total: {next_duration_total}")
         else:
-            pass
-            
             answers, ftl, next_token_len, next_duration = await loop.run_in_executor(
                 None,  # None 表示使用默认的线程池执行器
                 client_item["client"].chat, 
@@ -106,8 +108,10 @@ async def process_message(client_item, questions, ids, message_option, websocket
                     "answer": answers[i],
                     "ftl": ftl
                 }
+                batch_num += 1
+                ftl_total += ftl
                 logger.info(f"chat done: {json.dumps(response, ensure_ascii=False)}")
-                logger.info(f"token_len_total: {token_len_total}, next_duration_total: {next_duration_total}")
+                # logger.info(f"token_len_total: {token_len_total}, next_duration_total: {next_duration_total}")
                 # # 处理完成，发送响应给客户端
                 await websocket.send(json.dumps(response, ensure_ascii=False))
     except Exception as e:
@@ -123,6 +127,9 @@ async def handler(websocket, path, queue):
         if (message == "tps"):
             logger.info(f"tps: {(token_len_total / next_duration_total) * len(dev_ids)}")
             await websocket.send(str((token_len_total / next_duration_total) * len(dev_ids)))
+        elif (message == "ftl"):
+            logger.info(f"ftl: {ftl_total / batch_num}")
+            await websocket.send(str(ftl_total / batch_num))
         else:
             # 将消息和websocket连接放入队列
             await asyncio.create_task(queue.put((message, websocket)))

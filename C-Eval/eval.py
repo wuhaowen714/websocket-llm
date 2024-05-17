@@ -6,7 +6,7 @@ import os
 from tqdm import tqdm
 
 # 替换为你的WebSocket服务器URI
-uri = "ws://172.26.166.90:8765"
+uri = "ws://localhost:8765"
 
 
 question_num = 0
@@ -46,12 +46,15 @@ async def send_messages(websocket, question_num, test_df, subject):
 
 ## 处理消息
 async def receive_messages(websocket, question_num, subject, subject_dict, res):
+    tmp_dict = {}
     for i in tqdm(range(question_num)):
         response = await websocket.recv()
         response = json.loads(response)
         # 对response 进行下一步处理
         pred =  response['answer'][-1]
-        subject_dict[str(i)] = pred
+        tmp_dict[response['id']] = pred
+    for i in range(question_num):
+        subject_dict[str(i)] = tmp_dict[i]
     res[subject] = subject_dict
     await websocket.send("tps")
     tps = await websocket.recv()
