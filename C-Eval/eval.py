@@ -59,7 +59,9 @@ async def receive_messages(websocket, question_num, subject, subject_dict, res):
     await websocket.send("tps")
     tps = await websocket.recv()
     print(f"tps: {tps}")
-
+    await websocket.send("ftl")
+    ftl = await websocket.recv()
+    print(f"ftl: {ftl}")
 async def main(uri):
     # define params
     example_num = 0
