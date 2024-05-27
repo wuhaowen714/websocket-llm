@@ -2,17 +2,26 @@ import asyncio
 import websockets
 import json
 import sophon.sail as sail
-from chatglm3 import ChatGLM3_BS
 from transformers import AutoTokenizer
-from logger import init_logger
+from support.logger import init_logger
+import argparse
 
-dev_ids = [0]
-bmodel_path = '/disk/haowen/bmodels/chatglm3-6b_int8_4bs_1k.bmodel'
-tokenizer_path = './token_config'
-batch_size = 4
 
-port = 8765
-logger = init_logger('chatglm3')
+def argsparser():
+    parser = argparse.ArgumentParser(prog=__file__)
+    parser.add_argument('--name', type=str, default='chatglm3', help='name of model, default chatglm3')
+    parser.add_argument('--bmodel', type=str, default='./models/chatglm3/chatglm3-6b_int8_4bs_1k.bmodel', help='path of bmodel')
+    parser.add_argument('--batch_size', type=int, default=1, help='batch_size of the model, default 1')
+    parser.add_argument('--token_config', type=str, default='./models/chatglm3/token_config/', help='path of tokenizer')
+    parser.add_argument('--dev_id', type=list, default=[0], help='dev ids, default 0')
+    parser.add_argument('--port', type=int, default=8765, help='port of the service, default 8765')
+    args = parser.parse_args()
+    return args
+
+args = argsparser()
+
+logger = init_logger(args.name)
+
 client_pool = []
 
 
@@ -22,11 +31,20 @@ ftl_total = 0
 batch_num = 1e-8
 
 def init_client_pool():
-    for dev_id in dev_ids:
-        engine = sail.Engine(bmodel_path, dev_id, sail.IOMode.DEVIO)
+    for dev_id in args.dev_id:
+        engine = sail.Engine(args.bmodel, dev_id, sail.IOMode.DEVIO)
         handle = sail.Handle(dev_id)
-        tokenizer = AutoTokenizer.from_pretrained(tokenizer_path, trust_remote_code=True)
-        client = ChatGLM3_BS(handle, engine, tokenizer)
+        tokenizer = AutoTokenizer.from_pretrained(args.token_config, trust_remote_code=True)
+        # client = ChatGLM3_BS(handle, engine, tokenizer)
+        if args.name == 'chatglm3':
+            from support.chatglm3 import ChatGLM3_BS
+            client = ChatGLM3_BS(handle, args)
+        elif args.name == 'qwen':
+            from support.qwen import Qwen
+            client = Qwen(handle, args)
+        else:
+            print("#ERROR!! Not a supported model type, only support [chatglm3, qwen] so far")
+            exit(1)
         client_pool.append({"client": client, "status": 0})
 
 async def get_data_with_timeout(queue, timeout):
@@ -46,7 +64,7 @@ async def consumer_handler(queue):
                 ids = []
                 message_option = {}
                 websocket = None
-                for _ in range(batch_size):
+                for _ in range(args.batch_size):
                     data = await get_data_with_timeout(queue, timeout=0.5)
                     if data != None:
                         message, websocket = data
@@ -125,8 +143,8 @@ async def handler(websocket, path, queue):
     async for message in websocket:
         logger.info(f"get message: {message}")
         if (message == "tps"):
-            logger.info(f"tps: {(token_len_total / next_duration_total) * len(dev_ids)}")
-            await websocket.send(str((token_len_total / next_duration_total) * len(dev_ids)))
+            logger.info(f"tps: {(token_len_total / next_duration_total) * len(args.dev_id)}")
+            await websocket.send(str((token_len_total / next_duration_total) * len(args.dev_id)))
         elif (message == "ftl"):
             logger.info(f"ftl: {ftl_total / batch_num}")
             await websocket.send(str(ftl_total / batch_num))
@@ -141,8 +159,8 @@ async def main():
     consumer_task = asyncio.create_task(consumer_handler(queue))
 
     # 启动WebSocket服务器
-    async with websockets.serve(lambda ws, path: handler(ws, path, queue), "0.0.0.0", port):
-        logger.info(f"server start, port: {port}")
+    async with websockets.serve(lambda ws, path: handler(ws, path, queue), "0.0.0.0", args.port):
+        logger.info(f"server start, port: {args.port}")
         await asyncio.Future()  # 保持服务器运行
 
 asyncio.run(main(), debug=True)  # 运行主函数

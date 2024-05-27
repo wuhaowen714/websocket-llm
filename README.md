@@ -1,19 +1,26 @@
 ## 使用方式
 安装依赖
 ```
-pip3 install websockets
+pip3 install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+```
+下载模型
+```
+chmod +x scripts/download.sh
+./scripts/download.sh
 ```
 
-修改server.py中9-11行，填写正确的dev_ids, bmodel_path, tokenizer_path 
-```python
-dev_ids = [0, 1, 2]
-bmodel_path = './chatglm3-6b_int4_1dev_1024_nosample.bmodel'
-tokenizer_path = '../token_config'
-```
 启动websocket服务
 ```bash
-python3 server.py
+python3 server.py --name chatglm3 --bmodel ./models/chatglm3/chatglm3-6b_int8_4bs_1k.bmodel --batch_size 4 --token_config ./models/chatglm3/token_config --dev_id 0 --port 8765
 ```
+| 参数名 | 注释 | 默认值 |
+|---------|---------|---------| 
+| name | 模型名称，目前支持chatglm3, qwen | chatglm3 | 
+| bmodel | 模型路径 | ./models/chatglm3/chatglm3-6b_int8_4bs_1k.bmodel |
+| batch_size | 模型bsz | 1 |
+| token_config | tokenizer路径 | ./models/chatglm3/token_config/ |
+| dev_id | 芯片id | 0 |
+| port | 服务端口号 | 8765 |
 
 调用websocket服务，可参考client.py
 ```bash
@@ -76,3 +83,7 @@ ftl - first token的推理时间
 await websocket.send("tps")
 tps = await websocket.recv()
 ```
+
+
+## 精度评测
+请见C-Eval/README.md

@@ -11,6 +11,7 @@ import time
 import pandas as pd
 from transformers import AutoTokenizer
 import numpy as np
+import argparse
 
 #convert sail_dtype to numpy dtype
 def type_convert(sail_dtype):
@@ -33,9 +34,9 @@ def fp16_cast(arr:np.ndarray): #这个接口的作用在于把np.float16假冒�
         return arr
     
 class ChatGLM3_BS:
-    def __init__(self, handle, engine, tokenizer):
+    def __init__(self, handle, args):
         # load tokenizer
-        self.sp = tokenizer
+        self.sp = AutoTokenizer.from_pretrained(args.token_config, trust_remote_code=True)
         self.handle = handle
         # warm up
         self.sp.decode([0]) 
@@ -43,7 +44,7 @@ class ChatGLM3_BS:
 
         # load bmodel
         # 这里devio，后面都没有创建系统内存的tensor
-        self.net = engine
+        self.net = sail.Engine(args.bmodel, 0, sail.IOMode.DEVIO)
 
         self.graph_names = self.net.get_graph_names()
         
@@ -363,11 +364,21 @@ class ChatGLM3_BS:
         return answers, first_duration, (tok_num - 1) * len(inputs), next_end - first_end
 
 
+def argsparser():
+    parser = argparse.ArgumentParser(prog=__file__)
+    parser.add_argument('--name', type=str, default='chatglm3', help='name of model, default chatglm3')
+    parser.add_argument('--bmodel', type=str, default='./models/chatglm3-6b_int8_4bs_1k.bmodel', help='path of bmodel')
+    parser.add_argument('--batch_size', type=int, default=1, help='batch_size of the model, default 1')
+    parser.add_argument('--token_config', type=str, default='./token_config/', help='path of tokenizer')
+    parser.add_argument('--dev_id', type=list, default=[0], help='dev ids, default 0')
+    parser.add_argument('--port', type=int, default=8765, help='port of the service, default 8765')
+    args = parser.parse_args()
+    return args
+
 if __name__ == "__main__":
+    args = argsparser()
     handle = sail.Handle(0)
-    tokenizer = AutoTokenizer.from_pretrained('./token_config', trust_remote_code=True)
-    engine = sail.Engine('/disk/haowen/bmodels/chatglm3-6b_int4_4bs_1k.bmodel', 0, sail.IOMode.DEVIO)
-    client = ChatGLM3_BS(handle, engine, tokenizer)
+    client = ChatGLM3_BS(handle, args)
     inputs = []
     batch_size = 4
     df = pd.read_csv('accountant_test.csv', encoding='utf-8')

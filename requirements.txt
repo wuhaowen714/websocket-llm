@@ -1,0 +1,4 @@
+websockets
+dfss
+unzip
+transformers==4.39.1
